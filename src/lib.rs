@@ -1,3 +1,5 @@
+
+use wgpu::util::DeviceExt;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -18,7 +20,7 @@ pub async fn run() {
                 state.update();
                 match state.render() {
                     Ok(_) => {}
-                    // Reconfigure the surface if lost
+                    // econfigure the surface if lost
                     Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
                     // The system is out of memory, we should probably quit
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
@@ -44,8 +46,6 @@ pub async fn run() {
                             ..
                         },
                     .. } => {
-                        state.is_event_driven = !state.is_event_driven;
-                        window.request_redraw();
                     },
                     WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
                         input:
@@ -75,6 +75,48 @@ pub async fn run() {
 // lib.rs
 use winit::window::Window;
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
+}
+impl Vertex {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress, //width of vertex in memory
+            step_mode: wgpu::VertexStepMode::Vertex, //instancing donw later
+            attributes: &[ 
+                wgpu::VertexAttribute {
+                    offset: 0, //offset of bytes before the attribute starts
+                    shader_location: 0, // what field is this top to bottom by index.
+                    format: wgpu::VertexFormat::Float32x3, // shape of attribute this corresponds to vec3<f32> in shader code.
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                }
+            ]
+        }
+    }
+}
+const VERTICES: &[Vertex] = &[
+    Vertex { position: [-0.0868241, 0.49240386, 0.0], color: [0.5, 0.0, 0.5] }, // A
+    Vertex { position: [-0.49513406, 0.06958647, 0.0], color: [0.5, 0.0, 0.5] }, // B
+    Vertex { position: [-0.21918549, -0.44939706, 0.0], color: [0.5, 0.0, 0.5] }, // C
+    Vertex { position: [0.35966998, -0.3473291, 0.0], color: [0.5, 0.0, 0.5] }, // D
+    Vertex { position: [0.44147372, 0.2347359, 0.0], color: [0.5, 0.0, 0.5] }, // E
+];
+
+const INDICES: &[u16] = &[
+    0, 1, 4,
+    1, 2, 4,
+    2, 3, 4,
+];
+
+
+ 
 struct State {
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -82,7 +124,10 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
-    is_event_driven: bool,
+    vertex_buffer: wgpu::Buffer,
+    num_verticies : u32,
+    index_buffer: wgpu::Buffer, 
+    num_indices: u32,
 }
 
 impl State {
@@ -144,7 +189,9 @@ impl State {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main", // what shader to call
-                buffers: &[], //  what type of verticies we want to pass to vertex (currently specifying in shader itself).
+                buffers: &[
+                    Vertex::desc(),
+                ], //  what type of verticies we want to pass to vertex (currently specifying in shader itself).
             },
             fragment: Some(wgpu::FragmentState { // optional, in charge of coloring.
                 module: &shader,
@@ -177,7 +224,27 @@ impl State {
             },
             multiview: None, // how many array layers the render attachments can have??? todo::.
         });
-        
+
+        let num_verticies = VERTICES.len() as u32;
+         
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(VERTICES),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+        // NEW!
+        let index_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(INDICES),
+                usage: wgpu::BufferUsages::INDEX,
+            }
+        );
+
+        let num_indices = INDICES.len() as u32;
+
         Self{
             surface,
             device,
@@ -185,7 +252,10 @@ impl State {
             config,
             size,
             render_pipeline,
-            is_event_driven: false,
+            vertex_buffer,
+            num_verticies,
+            index_buffer, 
+            num_indices,
         }
 
 
@@ -205,7 +275,6 @@ impl State {
     }
 
     fn update(&mut self) {
-        self.update_pipeline();
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -233,7 +302,10 @@ impl State {
                 depth_stencil_attachment: None,
             });
             render_pass.set_pipeline(&self.render_pipeline); 
-            render_pass.draw(0..3, 0..1); //draw something with 3 verticies aand 1 instance.
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16); // 1.
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..1); // 2.
+           // render_pass.draw(0..self.num_verticies, 0..1); //draw something with 3 verticies aand 1 instance.
                                         // this is where [[builtin(vertex_index)]] comes from in the shader method.
         }
         
@@ -244,72 +316,4 @@ impl State {
     
         Ok(())
     }
-    
-    fn update_pipeline(&mut self) {
-        let shader = self.device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        });
-        
-        let render_pipeline_layout =
-            self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[],
-            push_constant_ranges: &[],
-        });
-
-        
-
-        let render_pipeline = self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main", // what shader to call
-                buffers: &[], //  what type of verticies we want to pass to vertex (currently specifying in shader itself).
-            },
-            fragment: Some(wgpu::FragmentState { // optional, in charge of coloring.
-                module: &shader,
-                entry_point: self.get_fs_shader(),
-                targets: &[wgpu::ColorTargetState { // blend is saying we want to replace all old pixels with new rendered ones
-                                                    //write mask is saying we want to use all colors.
-                    format: self.config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                }],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList, // topology triangle list means that every 3 verticies will == one triangle this is standard.
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw, // ccw means that the triangle is facing forward?
-                                                  // if verticies are counter clockwise. (CCW)
-                cull_mode: Some(wgpu::Face::Back), //anything not facing forward are "culled" more twhen covering buffer
-                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-                polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
-                unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
-                conservative: false,
-            },
-                depth_stencil: None, // will be coming back to this.
-                multisample: wgpu::MultisampleState {
-                count: 1, // defines how many sammples we will be using. apparently complex
-                mask: !0, // specifies which samples to be active. this case we are using all.
-                alpha_to_coverage_enabled: false, // anti aliasing option?? set to none
-            },
-            multiview: None, // how many array layers the render attachments can have??? todo::.
-        });
-
-        self.render_pipeline = render_pipeline;
-    }
-    
-    fn get_fs_shader(&self) -> &str {
-        if self.is_event_driven {
-                "fs_spacebar"
-        } else
-        {
-                "fs_main"
-        }
-    }
-
 }
