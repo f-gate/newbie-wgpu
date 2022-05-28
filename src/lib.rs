@@ -17,7 +17,7 @@ mod model;
 mod resources;
 mod texture;
 
-const NUM_INSTANCES_PER_ROW: u32 = 10;
+const NUM_INSTANCES_PER_ROW: u32 = 7;
 const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0, NUM_INSTANCES_PER_ROW as f32 * 0.5);
 
 pub async fn run() {
@@ -271,7 +271,7 @@ impl State {
             ],
             label: Some("camera_bind_group"),
         });
-        let camera_controller = camera::CameraController::new(0.2);
+        let camera_controller = camera::CameraController::new(0.4);
 
         const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|z| {
@@ -317,7 +317,6 @@ impl State {
 
         let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
         
-
         Self{
             surface,
             device,
@@ -345,9 +344,9 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.camera.aspect = new_size.width as f32 / new_size.height as f32;
         }
         self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
-        self.update();
     }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
@@ -374,9 +373,9 @@ impl State {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 1.0,
+                            r: 0.2,
                             g: 0.2,
-                            b: 0.3,
+                            b: 0.2,
                             a: 1.0,
                         }),
                         store: true,
@@ -399,8 +398,6 @@ impl State {
             use model::DrawModel;
             render_pass.draw_mesh_instanced(&self.obj_model.meshes[0], 0..self.instances.len() as u32);
 }
-        
-
         // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
