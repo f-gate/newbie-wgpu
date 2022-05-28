@@ -4,8 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+#[target.'cfg(target_arch = "wasm32")'.dependencies]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 
 [dependencies]
+
 winit = "0.26"
 env_logger = "0.9"
 log = "0.4"
@@ -13,4 +19,25 @@ wgpu = "0.12"
 pollster = "0.2"
 bytemuck = { version = "1.4", features = [ "derive" ] }
 cgmath = "0.18"
+anyhow = "1.0"
+fs_extra = "1.2"
+glob = "0.3"
+tobj = { version = "3.2.1", features = [
+    "async",
+]}
+reqwest = { version = "0.11" }
+console_error_panic_hook = "0.1.6"
+console_log = "0.2.0"
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = [
+    "Document",
+    "Window",
+    "Element",
+]}
+cfg-if = "1"
+ 
+
+ 
+
+
 
