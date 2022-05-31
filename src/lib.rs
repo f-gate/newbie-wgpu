@@ -7,8 +7,8 @@ use winit::{
     window::WindowBuilder, platform::unix::x11::ffi::WidthValue,
 };
 
-
-use cgmath::prelude::*;
+use wgpu::Features;
+use cgmath::{prelude::*, num_traits::Num};
 use crate::model::Vertex;
 
 mod camera;
@@ -17,7 +17,7 @@ mod model;
 mod resources;
 mod texture;
 
-const NUM_INSTANCES_PER_ROW: u32 = 7;
+const NUM_INSTANCES_PER_ROW: u32 = 20;
 const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0, NUM_INSTANCES_PER_ROW as f32 * 0.5);
 
 pub async fn run() {
@@ -205,7 +205,6 @@ impl State {
                     write_mask: wgpu::ColorWrites::ALL,
                 }],
             }),
-            
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList, // topology triangle list means that every 3 verticies will == one triangle this is standard.
                 strip_index_format: None,
@@ -213,6 +212,7 @@ impl State {
                                                   // if verticies are counter clockwise. (CCW)
                 cull_mode: None, //anything not facing forward are "culled" more twhen covering buffer
                 // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
+                //wgpu::PolygonMode::Fill
                 polygon_mode: wgpu::PolygonMode::Fill,
                 // Requires Features::DEPTH_CLIP_CONTROL
                 unclipped_depth: false,
@@ -245,7 +245,7 @@ impl State {
             aspect: config.width as f32 / config.height as f32,
             fovy: 45.0,
             znear: 0.1,
-            zfar: 100.0,
+            zfar: 1000.0,
         };
 
         // in new() after creating `camera`
@@ -280,17 +280,23 @@ impl State {
                     let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
                     let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
                     let y = SPACE_BETWEEN * (y as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
-            
+                    
+                    let y_color = y.abs();
+                    let x_color = 1.0 - (x / NUM_INSTANCES_PER_ROW as f32);
+                    let z_color = 1.0 - (z / NUM_INSTANCES_PER_ROW as f32);
+                    
                     let position = cgmath::Vector3 { x, y, z };
-            
+                    
                     let rotation = if position.is_zero() {
                         cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0))
                     } else {
                         cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(0.0))
                     };
-            
+                    println!("{:?}", y_color);
                     instance::Instance {
-                        position, rotation,
+                        position,
+                        rotation,
+                        color : cgmath::Vector3 {x : x_color, y:  y_color, z : z_color}.into(),
                     }    
                 })
             })

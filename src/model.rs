@@ -11,6 +11,7 @@ pub trait Vertex {
 pub struct ModelVertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
+
 }
 
 impl Vertex for ModelVertex {
@@ -82,6 +83,8 @@ where
         self.draw_indexed(0..mesh.num_elements, 0, instances);
     }
 }
+
+
 
 
 

@@ -1,4 +1,4 @@
-use std::io::{BufReader, Cursor};
+use std::{io::{BufReader, Cursor}, sync::Arc};
 
 use cfg_if::cfg_if;
 use wgpu::util::DeviceExt;
@@ -113,7 +113,6 @@ pub async fn load_model(
                 contents: bytemuck::cast_slice(&m.mesh.indices),
                 usage: wgpu::BufferUsages::INDEX,
             });
-
             model::Mesh {
                 name: file_name.to_string(),
                 vertex_buffer,
@@ -123,7 +122,6 @@ pub async fn load_model(
             }
         })
         .collect::<Vec<_>>();
-
     Ok(model::Model { meshes, materials })
 }
 
